@@ -21,7 +21,7 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized
 def detect_yolov5(cv_img):
     print("yolov5")
     out, source, weights, save_txt, imgsz = \
-        './inference/output', '', 'yolov5s.pt',  '', 640
+        './inference/output', '', 'sbd5s_v01.pt',  '', 640
     opt_augment, opt_agnostic_nms, opt_iou_thres, opt_classes = '','',0.5, ''
     opt_conf_thres = 0.4
     
@@ -40,13 +40,7 @@ def detect_yolov5(cv_img):
     if half:
         model.half()  # to FP16
 
-
-    # Set Dataloader
-    vid_path, vid_writer = None, None
-
-    view_img = True
     cudnn.benchmark = True  # set True to speed up constant image size inference
-    save_img = True
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -79,13 +73,19 @@ def detect_yolov5(cv_img):
     pred = non_max_suppression(pred, opt_conf_thres, opt_iou_thres, classes=opt_classes, agnostic=opt_agnostic_nms)
     t2 = time_synchronized()
 
-    
+    objects = []
+    sbd_class = ["other","suitcase","soft_bag","wheel","extended_handle","tray","box"]
+
+    classes_33 = ['suitcase','soft_bag','wheel','extended_handle','person','tray','upright_suitcase','spilled_bag','sphere_bag',
+'documents','bag_tag','strap_around_bag','stroller','golf_bag','surf_equipment','sport_equipment','music_equipment',
+'plastic_bag','shopping_bag','wrapped_bag','umbrella','storage_container','box','big_wheel','laptop_bag','tube','pet_container',
+'ski_equipment','tripod','child_safety_car_seat','tool_box','very_small_parcel','bingo_sticker']
+    # index of categories 33:
+
     # Process detections
     for i, det in enumerate(pred):  # detections per image
 
         s, im0 = '', im0s
-
-        save_path = '/home/don/test/yolov5/inference/output/result.jpg'    #str(Path(out) / Path(p).name)
         
         s += '%gx%g ' % img.shape[2:]  # print string
         gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -94,40 +94,41 @@ def detect_yolov5(cv_img):
             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
             # Print results
-            for c in det[:, -1].unique():
-                n = (det[:, -1] == c).sum()  # detections per class
-                s += '%g %ss, ' % (n, names[int(c)])  # add to string
+            # for c in det[:, -1].unique():
+            #     n = (det[:, -1] == c).sum()  # detections per class
+            #     s += '%g %ss, ' % (n, names[int(c)])  # add to string
 
-            # Write results
+            # # Write results
             for *xyxy, conf, cls in det:
-                print("\n>>>>>>>>>>>>>>>>>>:", xyxy, conf,cls)
+                # Add bbox to image
+                label = '%s %.2f' % (names[int(cls)], conf)
+                plot_one_box(xyxy, cv_img, label=label, color=colors[int(cls)], line_thickness=3)
+                conf = conf.item()
+                cls = int(cls.item())
+                print("\n>>>>>>>>>>>>>>>>>>:", xyxy[0].tolist(),xyxy[1].tolist(),xyxy[2].tolist(),xyxy[3].tolist())
+                print(conf)
+                print(cls)
 
-                if save_img or view_img:  # Add bbox to image
-                    label = '%s %.2f' % (names[int(cls)], conf)
-                    plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-
+                if conf > 0.4:
+                    print(classes_33[cls])
+                    if classes_33[cls] in sbd_class : 
+                        objects.append(sbd_class.index(classes_33[cls]))
+                    else:
+                        objects.append(4) # "other"
+                        print(classes_33[cls], sbd_class)
         # Print time (inference + NMS)
+        save_path = '/home/don/test/sbd/result.jpg'
+        cv2.imwrite(save_path, cv_img)
         print('%sDone. (%.3fs)' % (s, t2 - t1))
-    '''
-        # Stream results
-        if view_img:
-            cv2.imshow("image", im0)
-            if cv2.waitKey(1) == ord('q'):  # q to quit
-                raise StopIteration
 
-        # Save results (image with detections)
-        print(save_path)
-        if save_img:
-            cv2.imwrite(save_path, im0)
-
-
-    if save_txt or save_img:
-        print('Results saved to %s' % Path(out))
-        if platform == 'darwin' and not opt.update:  # MacOS
-            os.system('open ' + save_path)
-    '''
     print('Done. (%.3fs)' % (time.time() - t0))    
-    return 
+    return objects
+
+
+
+
+
+
 
 def detect(save_img=False):
     out, source, weights, view_img, save_txt, imgsz = \
@@ -256,7 +257,7 @@ def detect(save_img=False):
 
     print('Done. (%.3fs)' % (time.time() - t0))
 
-'''
+
 if __name__ == '__main__':
     with torch.no_grad():
         cv_img = cv2.imread("/home/don/test/yolov5/inference/images/bus.jpg")
@@ -289,3 +290,4 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             detect()
+'''
